@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perplexity Explorer</title>
+  <style>
+    :root {
+      --blue: #3568e8;
+      --purple: #7654d6;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #e6eaf2;
+      --soft: #f5f7fc;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 32px 16px 56px;
+      background: #f5f7fb;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main { width: min(960px, 100%); margin: 0 auto; }
+
+    header { margin-bottom: 24px; }
+    h1 { margin: 0 0 8px; font-size: clamp(28px, 5vw, 38px); letter-spacing: -1.2px; }
+    header p { margin: 0; color: var(--muted); line-height: 1.6; }
+
+    .card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 24px;
+      margin: 18px 0;
+      box-shadow: 0 8px 28px rgba(28, 43, 76, 0.045);
+    }
+
+    h2 { margin: 0 0 16px; font-size: 20px; }
+    h3 { margin: 22px 0 10px; font-size: 16px; }
+    .hint, .status { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .status { min-height: 20px; margin-top: 12px; }
+    .error { color: #c62828; background: #fff1f1; border: 1px solid #ffd2d2; padding: 12px; border-radius: 10px; }
+
+    textarea, input {
+      width: 100%;
+      border: 1px solid #d7ddeb;
+      border-radius: 11px;
+      padding: 12px 14px;
+      color: var(--ink);
+      background: white;
+      font: inherit;
+      outline: none;
+    }
+    textarea { min-height: 92px; resize: vertical; }
+    textarea:focus, input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(53, 104, 232, .12); }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 15px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: transform .12s, opacity .12s;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { cursor: wait; opacity: .55; transform: none; }
+    .primary { color: white; background: linear-gradient(110deg, var(--blue), var(--purple)); }
+    .secondary { color: #33415f; background: #eef2fa; }
+    .small { padding: 7px 10px; font-size: 12px; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
+    .main-action { margin-top: 14px; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 11px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+    th { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    td.number { font-variant-numeric: tabular-nums; }
+    .token { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+    .empty { padding: 18px; text-align: center; color: var(--muted); background: var(--soft); border-radius: 10px; }
+
+    .steps { display: grid; gap: 10px; margin-top: 18px; }
+    .step { background: var(--soft); border-radius: 12px; padding: 13px 15px; line-height: 1.55; overflow-wrap: anywhere; }
+    .step strong { display: block; margin-bottom: 4px; }
+    .perplexity { margin-top: 14px; padding: 18px; border-radius: 14px; background: #f0edff; text-align: center; }
+    .perplexity span { display: block; color: #5f4ab4; font-size: 13px; font-weight: 700; }
+    .perplexity output { display: block; margin-top: 4px; color: #3d2b8f; font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+
+    .prediction { display: grid; grid-template-columns: minmax(90px, 150px) 1fr 58px; align-items: center; gap: 12px; margin: 12px 0; }
+    .prediction-token { overflow: hidden; text-overflow: ellipsis; white-space: pre; font-family: ui-monospace, monospace; }
+    .track { height: 12px; background: #edf0f7; border-radius: 20px; overflow: hidden; }
+    .bar { height: 100%; background: #9b8be8; border-radius: inherit; }
+    .prediction.top .bar { background: linear-gradient(90deg, var(--blue), var(--purple)); }
+    .prediction.top .prediction-token { color: #5437bd; font-weight: 800; }
+    .percent { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+
+    .manual-row { display: grid; grid-template-columns: 1fr minmax(120px, 180px) auto; gap: 9px; align-items: center; margin: 9px 0; }
+    .manual-row input { min-width: 0; }
+    .manual-row .remove { color: #a42b35; background: #fff0f0; }
+    .tag { display: inline-block; margin-left: 7px; padding: 4px 8px; border-radius: 20px; color: #7a4d08; background: #fff3d8; font-size: 11px; font-weight: 800; vertical-align: middle; }
+    .muted-note { color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 600px) {
+      body { padding: 22px 12px 40px; }
+      .card { padding: 18px 14px; }
+      .prediction { grid-template-columns: 76px 1fr 48px; gap: 8px; }
+      .manual-row { grid-template-columns: 1fr 110px auto; gap: 6px; }
+      .manual-row input { padding: 10px 8px; font-size: 13px; }
+      th, td { padding: 9px 7px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Perplexity Explorer</h1>
+      <p>Explore how a language model scores a sentence, and how token probabilities combine into perplexity.</p>
+    </header>
+
+    <section class="card">
+      <h2>1. Type a sentence</h2>
+      <label class="hint" for="sentence">Sentence to score</label>
+      <textarea id="sentence">I love Python</textarea>
+      <div class="button-row">
+        <button class="secondary sample" data-text="I love Python">I love Python</button>
+        <button class="secondary sample" data-text="Python love I">Python love I</button>
+        <button class="secondary sample" data-text="The capital of France is Paris">The capital of France is Paris</button>
+      </div>
+      <button class="primary main-action" id="calculate">Calculate perplexity</button>
+      <div class="status" id="modelStatus" role="status">Model not loaded. It downloads the first time you calculate.</div>
+      <div id="modelError" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <h2>2. Probability of each token → perplexity</h2>
+      <div id="modelTable" class="empty">Calculate a sentence to see its token probabilities.</div>
+      <div id="modelSteps"></div>
+    </section>
+
+    <section class="card">
+      <h2>3. What does the model predict next?</h2>
+      <p class="hint">These are the eight most likely next tokens after the full sentence.</p>
+      <div id="predictions" class="empty">Next-token predictions will appear after calculation.</div>
+    </section>
+
+    <section class="card">
+      <h2>4. Try it by hand <span class="tag">Simulated, not from the model</span></h2>
+      <p class="hint">Enter token names and probabilities between 0 and 1. This section is a calculator only; it does not use the language model.</p>
+      <div class="button-row">
+        <button class="secondary preset" data-preset="example">I love Python</button>
+        <button class="secondary preset" data-preset="eighths">All 1/8</button>
+        <button class="secondary preset" data-preset="surprise">One surprising word</button>
+      </div>
+      <div id="manualRows"></div>
+      <button class="secondary main-action" id="addToken">+ Add token</button>
+      <div id="manualTable"></div>
+      <div id="manualSteps"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    // Transformers.js runs the model directly in the browser.
+    import { AutoTokenizer, AutoModelForCausalLM, Tensor } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3";
+
+    const MODEL_ID = "Xenova/distilgpt2";
+    let tokenizer = null;
+    let model = null;
+    let modelLoading = false;
+
+    const $ = (id) => document.getElementById(id);
+
+    // Turn an array of probabilities into the same table and perplexity steps.
+    function renderProbabilityResult(targetTable, targetSteps, rows) {
+      if (!rows.length) {
+        targetTable.innerHTML = '<div class="empty">Add at least one token to calculate perplexity.</div>';
+        targetSteps.innerHTML = "";
+        return;
+      }
+
+      const valid = rows.every(row => Number.isFinite(row.probability) &&
+        row.probability > 0 && row.probability <= 1);
+
+      if (!valid) {
+        targetTable.innerHTML = '<div class="error">Every probability must be greater than 0 and at most 1.</div>';
+        targetSteps.innerHTML = "";
+        return;
+      }
+
+      const logInverseSum = rows.reduce((sum, row) => sum - Math.log(row.probability), 0);
+      const perplexity = Math.exp(logInverseSum / rows.length);
+      const product = Math.exp(logInverseSum);
+
+      targetTable.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Token</th><th>Probability P</th><th>1/P</th></tr></thead>
+            <tbody>
+              ${rows.map((row, index) => `
+                <tr>
+                  <td class="number">${index + 1}</td>
+                  <td class="token">${escapeHTML(row.token).replace(/ /g, "␣")}</td>
+                  <td class="number">${formatNumber(row.probability)}</td>
+                  <td class="number">${formatNumber(1 / row.probability)}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>`;
+
+      const multiplication = rows.map(row => formatNumber(1 / row.probability)).join(" × ");
+      targetSteps.innerHTML = `
+        <div class="steps">
+          <div class="step"><strong>Step 1: Multiply all the 1/P values</strong>
+            ${multiplication} = ${formatNumber(product)}
+          </div>
+          <div class="step"><strong>Step 2: Count the tokens</strong>
+            N = ${rows.length}
+          </div>
+          <div class="step"><strong>Step 3: Take the Nth root</strong>
+            Perplexity = (${formatNumber(product)})<sup>1/${rows.length}</sup>
+            <div class="muted-note">Calculated safely as exp(average of −ln P).</div>
+          </div>
+        </div>
+        <div class="perplexity"><span>PERPLEXITY</span><output>${perplexity.toFixed(2)}</output></div>`;
+    }
+
+    function formatNumber(value) {
+      if (!Number.isFinite(value)) return "∞";
+      if (value !== 0 && (Math.abs(value) >= 1e7 || Math.abs(value) < 1e-5)) {
+        return value.toExponential(3);
+      }
+      return Number(value.toPrecision(6)).toString();
+    }
+
+    function escapeHTML(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[char]);
+    }
+
+    // Stable softmax: subtract the largest logit before exponentiating.
+    function softmax(logits) {
+      const maxLogit = Math.max(...logits);
+      const exps = logits.map(value => Math.exp(value - maxLogit));
+      const total = exps.reduce((sum, value) => sum + value, 0);
+      return exps.map(value => value / total);
+    }
+
+    async function loadModel() {
+      if (model && tokenizer) return;
+      if (modelLoading) return;
+      modelLoading = true;
+      $("modelStatus").textContent = "Downloading the model… This may take a little while.";
+      try {
+        tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
+        model = await AutoModelForCausalLM.from_pretrained(MODEL_ID, { dtype: "q8" });
+        $("modelStatus").textContent = "Model ready.";
+      } finally {
+        modelLoading = false;
+      }
+    }
+
+    async function calculateModelPerplexity() {
+      const button = $("calculate");
+      const sentence = $("sentence").value.trim();
+      $("modelError").innerHTML = "";
+      if (!sentence) {
+        $("modelError").innerHTML = '<div class="error">Please type a sentence first.</div>';
+        return;
+      }
+
+      button.disabled = true;
+      try {
+        await loadModel();
+
+        // Add the GPT-2 end-of-text marker before the real sentence tokens.
+        const tokenIds = [50256, ...tokenizer.encode(sentence)];
+        if (tokenIds.length < 2) throw new Error("The sentence did not produce any tokens.");
+
+        const inputTensor = new Tensor("int64", BigInt64Array.from(tokenIds, id => BigInt(id)), [1, tokenIds.length]);
+        const output = await model({ input_ids: inputTensor });
+        const logits = output.logits;
+        const vocabSize = logits.dims[2];
+        const sequenceLength = logits.dims[1];
+        const values = logits.data;
+
+        const rows = [];
+        // Logits at position i-1 predict token i.
+        for (let i = 1; i < tokenIds.length; i++) {
+          const offset = (i - 1) * vocabSize;
+          const positionLogits = Array.from(values.slice(offset, offset + vocabSize));
+          const probabilities = softmax(positionLogits);
+          const probability = probabilities[tokenIds[i]];
+          rows.push({
+            token: tokenizer.decode([tokenIds[i]]),
+            probability
+          });
+        }
+
+        renderProbabilityResult($("modelTable"), $("modelSteps"), rows);
+
+        // The final position predicts what comes after the sentence.
+        const lastOffset = (sequenceLength - 1) * vocabSize;
+        const finalLogits = Array.from(values.slice(lastOffset, lastOffset + vocabSize));
+        const nextProbabilities = softmax(finalLogits);
+        const top = nextProbabilities
+          .map((probability, id) => ({ id, probability }))
+          .sort((a, b) => b.probability - a.probability)
+          .slice(0, 8);
+
+        $("predictions").innerHTML = top.map((item, index) => {
+          const token = tokenizer.decode([item.id]).replace(/ /g, "␣") || "(empty token)";
+          const percent = item.probability * 100;
+          return `
+            <div class="prediction ${index === 0 ? "top" : ""}">
+              <div class="prediction-token">${escapeHTML(token)}</div>
+              <div class="track"><div class="bar" style="width:${percent}%"></div></div>
+              <div class="percent">${percent.toFixed(2)}%</div>
+            </div>`;
+        }).join("");
+        $("modelStatus").textContent = "Model ready. Calculation complete.";
+      } catch (error) {
+        console.error(error);
+        $("modelStatus").textContent = "Model could not be loaded or run.";
+        $("modelError").innerHTML = `<div class="error"><strong>Model error:</strong> ${escapeHTML(error.message || String(error))}<br>Check your internet connection, then try again. No placeholder probabilities have been shown.</div>`;
+        $("modelTable").innerHTML = '<div class="empty">No model probabilities available.</div>';
+        $("modelSteps").innerHTML = "";
+        $("predictions").innerHTML = '<div class="empty">No predictions available.</div>';
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    $("calculate").addEventListener("click", calculateModelPerplexity);
+
+    // Sample buttons fill the sentence and immediately calculate it.
+    document.querySelectorAll(".sample").forEach(button => {
+      button.addEventListener("click", () => {
+        $("sentence").value = button.dataset.text;
+        calculateModelPerplexity();
+      });
+    });
+
+    // Manual calculator state is kept in the input rows.
+    let manualTokens = [];
+    let nextManualId = 1;
+
+    function addManualToken(token = "", probability = 0.5) {
+      manualTokens.push({ id: nextManualId++, token, probability: String(probability) });
+      renderManualRows();
+    }
+
+    function renderManualRows() {
+      $("manualRows").innerHTML = manualTokens.map(row => `
+        <div class="manual-row" data-id="${row.id}">
+          <input class="manual-name" aria-label="Token name" placeholder="Token name" value="${escapeHTML(row.token)}">
+          <input class="manual-probability" aria-label="Probability" type="number" min="0.000001" max="1" step="any" value="${escapeHTML(row.probability)}">
+          <button class="small remove" type="button">Remove</button>
+        </div>`).join("");
+
+      document.querySelectorAll(".manual-row").forEach(element => {
+        const id = Number(element.dataset.id);
+        element.querySelector(".manual-name").addEventListener("input", event => {
+          const row = manualTokens.find(item => item.id === id);
+          row.token = event.target.value;
+          updateManualResult();
+        });
+        element.querySelector(".manual-probability").addEventListener("input", event => {
+          const row = manualTokens.find(item => item.id === id);
+          row.probability = event.target.value;
+          updateManualResult();
+        });
+        element.querySelector(".remove").addEventListener("click", () => {
+          manualTokens = manualTokens.filter(item => item.id !== id);
+          renderManualRows();
+        });
+      });
+      updateManualResult();
+    }
+
+    function updateManualResult() {
+      const rows = manualTokens.map((row, index) => ({
+        token: row.token || `Token ${index + 1}`,
+        probability: Number(row.probability)
+      }));
+      renderProbabilityResult($("manualTable"), $("manualSteps"), rows);
+    }
+
+    $("addToken").addEventListener("click", () => addManualToken("New token", 0.5));
+
+    // Presets make it easy to test known examples.
+    document.querySelectorAll(".preset").forEach(button => {
+      button.addEventListener("click", () => {
+        const presets = {
+          example: [
+            ["I", 0.5], ["love", 0.8], ["Python", 0.2]
+          ],
+          eighths: Array.from({ length: 8 }, (_, index) => [`Token ${index + 1}`, 0.125]),
+          surprise: [
+            ["A", 0.9], ["very", 0.9], ["likely", 0.9], ["word", 0.01]
+          ]
+        };
+        manualTokens = [];
+        presets[button.dataset.preset].forEach(([token, probability]) => {
+          manualTokens.push({ id: nextManualId++, token, probability: String(probability) });
+        });
+        renderManualRows();
+      });
+    });
+
+    // Start with the three-token example ready to explore.
+    [["I", 0.5], ["love", 0.8], ["Python", 0.2]].forEach(([token, probability]) => {
+      manualTokens.push({ id: nextManualId++, token, probability: String(probability) });
+    });
+    renderManualRows();
+  </script>
+</body>
+</html>
